@@ -11,7 +11,8 @@ const vaultData: VaultData = {
     hideCodes: false,
     autoPasteCodes: false,
     accountSortMode: 'manual',
-    alwaysShowAllCodes: false
+    alwaysShowAllCodes: false,
+    autoBackupInterval: 'off'
   }
 };
 

@@ -885,7 +885,6 @@
     const fromIndex = accounts.findIndex((item) => item.id === account.id);
     const delta = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
     const draggedAccount = vault.sortedAccounts.find((item) => item.id === account.id);
-    const pinnedCount = vault.sortedAccounts.filter((item) => item.pinned).length;
     const minIndex = draggedAccount?.pinned ? 0 : pinnedCount;
     const maxIndex = draggedAccount?.pinned ? pinnedCount - 1 : accounts.length - 1;
     const toIndex = Math.max(minIndex, Math.min(maxIndex, fromIndex + delta));
@@ -962,7 +961,6 @@
     }
 
     const draggedAccount = vault.sortedAccounts.find((item) => item.id === state.accountId);
-    const pinnedCount = vault.sortedAccounts.filter((item) => item.pinned).length;
     if (draggedAccount?.pinned) {
       targetIndex = Math.min(targetIndex, pinnedCount - 1);
     } else if (pinnedCount > 0) {
@@ -1110,6 +1108,36 @@
                   <Search class="shrink-0 text-base-content/45" size={18} aria-hidden="true" />
                   <input class="grow text-base" type="search" placeholder={tr('search')} bind:value={query} />
                 </label>
+              </div>
+            {/if}
+
+            {#if backupDue && !dismissedBackupReminder}
+              <div class="mx-3 mt-2 flex items-center justify-between gap-2 rounded-box border border-primary/30 bg-primary/10 px-3 py-2 text-xs">
+                <div class="flex min-w-0 items-center gap-2">
+                  <DatabaseBackup size={16} class="shrink-0 text-primary" aria-hidden="true" />
+                  <span class="truncate font-medium">{tr('backupDueNotice')}</span>
+                </div>
+                <div class="flex shrink-0 items-center gap-1.5">
+                  <button
+                    class="btn btn-primary btn-xs"
+                    type="button"
+                    onclick={() => {
+                      animateViewTransition = true;
+                      settingsPanel = 'transfer';
+                      view = 'settings';
+                    }}
+                  >
+                    {tr('backupNow')}
+                  </button>
+                  <button
+                    class="btn btn-ghost btn-xs btn-circle"
+                    type="button"
+                    aria-label={tr('cancel')}
+                    onclick={() => (dismissedBackupReminder = true)}
+                  >
+                    <X size={14} aria-hidden="true" />
+                  </button>
+                </div>
               </div>
             {/if}
 

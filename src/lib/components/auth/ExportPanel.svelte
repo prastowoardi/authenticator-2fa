@@ -8,6 +8,7 @@
   import PasswordField from './PasswordField.svelte';
   import { FADE_TRANSITION, panelReveal } from './transitions';
   import { createEncryptedBackupFile, createPlainOtpAuthFile, downloadFile } from '../../auth/backup';
+  import { authenticatorVault as vault } from '../../state/authenticator.svelte';
   import { getErrorMessage } from '../../auth/errors';
   import type { AppSettings, AuthenticatorAccount } from '../../auth/types';
   import { tr } from '../../i18n/messages';
@@ -59,6 +60,7 @@
           ? createPlainOtpAuthFile(accounts)
           : await createEncryptedBackupFile(accounts, settings, password)
       );
+      void vault.updateSettings({ lastBackupDate: new Date().toISOString() });
       // Passwords are only needed for the file that just left the app.
       password = '';
       confirmPassword = '';

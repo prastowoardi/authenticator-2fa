@@ -203,6 +203,60 @@ describe('AuthenticatorVault persistence and locking', () => {
     expect(vault.sortedAccounts.find((a) => a.label === 'bob@example.com')?.pinned).toBeUndefined();
   });
 
+  test('allows reordering pinned accounts among themselves in contextual mode', async () => {
+    installStructuredCloneChromeStorage();
+    const vault = new AuthenticatorVault();
+    await vault.initialize();
+    await vault.importText(MULTI_IMPORT);
+
+    const byLabel = accountsByLabel(vault.sortedAccounts);
+    const alice = byLabel.get('alice@example.com')!;
+    const bob = byLabel.get('bob@example.com')!;
+    const carol = byLabel.get('carol@example.com')!;
+
+    // Pin Alice and Bob
+    await vault.togglePinAccount(alice);
+    await vault.togglePinAccount(bob);
+
+    // Initial pinned order: [alice, bob], unpinned: [carol]
+    expect(accountLabels(vault.sortedAccounts)).toEqual([
+      'alice@example.com',
+      'bob@example.com',
+      'carol@example.com'
+    ]);
+
+    // Reorder pinned accounts: put Bob before Alice (still in contextual mode)
+    expect(vault.settings.accountSortMode).toBe('contextual');
+    await vault.reorderAccounts([bob.id, alice.id, carol.id]);
+
+    expect(accountLabels(vault.sortedAccounts)).toEqual([
+      'bob@example.com',
+      'alice@example.com',
+      'carol@example.com'
+    ]);
+  });
+
+  test('updates auto backup interval and tracks last backup date', async () => {
+    const vault = new AuthenticatorVault();
+    await vault.initialize();
+
+    expect(vault.settings.autoBackupInterval).toBe('off');
+    expect(vault.settings.lastBackupDate).toBeUndefined();
+
+    await vault.updateSettings({
+      autoBackupInterval: 'monthly',
+      lastBackupDate: '2026-01-01T00:00:00.000Z'
+    });
+
+    expect(vault.settings.autoBackupInterval).toBe('monthly');
+    expect(vault.settings.lastBackupDate).toBe('2026-01-01T00:00:00.000Z');
+
+    const stored = await loadStoredVault();
+    if (!isPlainVaultRecord(stored)) throw new Error('Expected plain vault');
+    expect(stored.data.settings.autoBackupInterval).toBe('monthly');
+    expect(stored.data.settings.lastBackupDate).toBe('2026-01-01T00:00:00.000Z');
+  });
+
   test('ignores incomplete, duplicate, or unknown reorder requests', async () => {
     const vault = new AuthenticatorVault();
     await vault.initialize();
@@ -366,7 +420,8 @@ describe('AuthenticatorVault persistence and locking', () => {
       hideCodes: false,
       autoPasteCodes: false,
       accountSortMode: 'contextual',
-      alwaysShowAllCodes: false
+      alwaysShowAllCodes: false,
+      autoBackupInterval: 'off'
     });
     expect(await loadStoredVault()).toBeNull();
   });

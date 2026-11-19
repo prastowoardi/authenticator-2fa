@@ -348,6 +348,29 @@
     <!-- Backup -->
     <section class="space-y-3">
       <h2 class="text-xs font-bold uppercase tracking-wide text-base-content/50">{tr('importExport')}</h2>
+
+      <div class="space-y-1.5">
+        <label class="grid gap-1.5">
+          <span class="block">
+            <span class="block text-sm font-medium">{tr('autoBackup')}</span>
+            <span class="block text-xs text-base-content/60">{tr('autoBackupHint')}</span>
+          </span>
+          <select
+            class="select select-sm w-full"
+            value={vault.settings.autoBackupInterval}
+            onchange={(event) => saveSettings({ autoBackupInterval: (event.target as HTMLSelectElement).value as any })}
+          >
+            <option value="off">{tr('autoBackupOff')}</option>
+            <option value="monthly">{tr('autoBackupMonthly')}</option>
+            <option value="weekly">{tr('autoBackupWeekly')}</option>
+          </select>
+        </label>
+        <div class="flex items-center justify-between text-xs text-base-content/50 pt-0.5">
+          <span>{tr('lastBackup')}</span>
+          <span>{vault.settings.lastBackupDate ? new Date(vault.settings.lastBackupDate).toLocaleDateString() : tr('never')}</span>
+        </div>
+      </div>
+
       <button
         class="btn btn-block btn-sm justify-between border border-base-content/20 bg-base-200"
         type="button"
