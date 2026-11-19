@@ -195,6 +195,22 @@ test('updating a Steam account preserves the 5 character code length', () => {
   expect(updated.digits).toBe(5);
 });
 
+test('creates and updates pinned accounts', () => {
+  const account = createAccount({
+    label: 'Pinned account',
+    secret: rfcSecret,
+    pinned: true
+  });
+
+  expect(account.pinned).toBe(true);
+
+  const unpinned = updateAccount(account, { pinned: false });
+  expect(unpinned.pinned).toBeUndefined();
+
+  const repinned = updateAccount(unpinned, { pinned: true });
+  expect(repinned.pinned).toBe(true);
+});
+
 function protoMessage(parts: Uint8Array[]): Uint8Array {
   return concat(parts);
 }

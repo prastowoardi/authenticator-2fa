@@ -133,7 +133,7 @@ export function normalizeAccountOrder(accounts: AuthenticatorAccount[]): Authent
   const orderedAccounts = hasSortOrder
     ? [...indexedAccounts].sort(
         (left, right) =>
-          getSortOrder(left.account) - getSortOrder(right.account) || left.index - right.index
+          compareAccountOrder(left.account, right.account) || left.index - right.index
       )
     : indexedAccounts;
 
@@ -172,6 +172,11 @@ export function compareAccountOrder(
   left: AuthenticatorAccount,
   right: AuthenticatorAccount
 ): number {
+  const leftPinned = left.pinned ? 1 : 0;
+  const rightPinned = right.pinned ? 1 : 0;
+  if (leftPinned !== rightPinned) {
+    return rightPinned - leftPinned;
+  }
   return (
     getSortOrder(left) - getSortOrder(right) ||
     left.createdAt.localeCompare(right.createdAt) ||

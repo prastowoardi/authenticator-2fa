@@ -352,6 +352,49 @@ describe('contextual account ranking', () => {
     expect(rankAccountsForPage(accounts, { hostname: 'chrome://extensions' })).toEqual(snapshot);
     expect(accounts).toEqual(snapshot);
   });
+
+  test('ranks pinned accounts at the top while strictly preserving manual order among them', () => {
+    const pinnedWork = { ...account('Google', 'Work'), pinned: true };
+    const pinnedPersonal = { ...account('GitHub', 'Personal'), pinned: true };
+    const unpinnedMatch = account('GitHub', 'Work');
+    const unpinnedOther = account('Slack');
+
+    const ranking = getAccountPageRanking(
+      [unpinnedOther, unpinnedMatch, pinnedWork, pinnedPersonal],
+      { hostname: 'github.com' }
+    );
+
+    // Pinned accounts come first, in their exact order [pinnedWork, pinnedPersonal]
+    expect(ranking.accounts.map((a) => a.label)).toEqual([
+      'Work',
+      'Personal',
+      'Work',
+      'Slack'
+    ]);
+    expect(ranking.accounts[0].pinned).toBe(true);
+    expect(ranking.accounts[1].pinned).toBe(true);
+  });
+
+  test('keeps pinned accounts visible in collapsed contextual list view', () => {
+    const pinnedAccount = { ...account('Google'), pinned: true };
+    const siteMatch = account('Instagram');
+    const otherAccount = account('Twitter');
+
+    const ranking = getAccountPageRanking([pinnedAccount, siteMatch, otherAccount], {
+      hostname: 'instagram.com'
+    });
+
+    const view = getAccountListView(ranking.accounts, ranking.suggestedAccountIds, {
+      query: '',
+      alwaysShowAll: false,
+      revealAll: false
+    });
+
+    // Pinned account stays visible with site matches, only otherAccount is hidden
+    expect(labels(view.accounts)).toEqual(['Google', 'Instagram']);
+    expect(view.hiddenCount).toBe(1);
+    expect(labels(view.revealedAccounts)).toEqual([]);
+  });
 });
 
 function account(issuer: string, label = issuer): AuthenticatorAccount {

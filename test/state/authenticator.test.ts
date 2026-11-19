@@ -175,6 +175,34 @@ describe('AuthenticatorVault persistence and locking', () => {
     ]);
   });
 
+  test('pins an account to the top and persists the pinned state', async () => {
+    installStructuredCloneChromeStorage();
+    const vault = new AuthenticatorVault();
+    await vault.initialize();
+    await vault.importText(MULTI_IMPORT);
+
+    const byLabel = accountsByLabel(vault.sortedAccounts);
+    const bob = byLabel.get('bob@example.com');
+    if (!bob) throw new Error('Bob account not found');
+
+    await vault.togglePinAccount(bob);
+
+    expect(accountLabels(vault.sortedAccounts)).toEqual([
+      'bob@example.com',
+      'alice@example.com',
+      'carol@example.com'
+    ]);
+    expect(vault.sortedAccounts[0].pinned).toBe(true);
+
+    const stored = await loadStoredVault();
+    if (!isPlainVaultRecord(stored)) throw new Error('Expected plain vault');
+    expect(stored.data.accounts.find((a) => a.label === 'bob@example.com')?.pinned).toBe(true);
+
+    // Toggle pin off
+    await vault.togglePinAccount(vault.sortedAccounts[0]);
+    expect(vault.sortedAccounts.find((a) => a.label === 'bob@example.com')?.pinned).toBeUndefined();
+  });
+
   test('ignores incomplete, duplicate, or unknown reorder requests', async () => {
     const vault = new AuthenticatorVault();
     await vault.initialize();

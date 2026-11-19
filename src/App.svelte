@@ -4,11 +4,14 @@
   import { fade } from 'svelte/transition';
   import ClipboardPaste from '@lucide/svelte/icons/clipboard-paste';
   import ChevronDown from '@lucide/svelte/icons/chevron-down';
+  import DatabaseBackup from '@lucide/svelte/icons/database-backup';
   import Download from '@lucide/svelte/icons/download';
   import ExternalLink from '@lucide/svelte/icons/external-link';
   import ImageUp from '@lucide/svelte/icons/image-up';
   import KeyRound from '@lucide/svelte/icons/key-round';
   import Pencil from '@lucide/svelte/icons/pencil';
+  import Pin from '@lucide/svelte/icons/pin';
+  import PinOff from '@lucide/svelte/icons/pin-off';
   import Plus from '@lucide/svelte/icons/plus';
   import QrCode from '@lucide/svelte/icons/qr-code';
   import ScanLine from '@lucide/svelte/icons/scan-line';
@@ -137,6 +140,7 @@
   let settingsPanel = $state<'transfer'>();
 
   const manualSort = $derived(vault.settings.accountSortMode === 'manual');
+  const pinnedCount = $derived(vault.sortedAccounts.filter((account) => account.pinned).length);
   const pageRanking = $derived.by(() =>
     getAccountPageRanking(vault.sortedAccounts, manualSort ? null : pageContext)
   );
@@ -156,6 +160,22 @@
   const activeDragAccountId = $derived(dragState?.accountId ?? keyboardDraggingAccountId);
   const pageScanBusy = $derived(pageScanState !== 'idle');
   const themeOverride = $derived(vault.settings.theme === 'system' ? undefined : vault.settings.theme);
+
+  let dismissedBackupReminder = $state(false);
+  const backupDue = $derived.by(() => {
+    if (vault.locked || !vault.hasVault || vault.accounts.length === 0) return false;
+    const interval = vault.settings.autoBackupInterval;
+    if (interval === 'off') return false;
+
+    const lastDate = vault.settings.lastBackupDate;
+    if (!lastDate) return true;
+
+    const lastTime = Date.parse(lastDate);
+    if (!Number.isFinite(lastTime)) return true;
+
+    const days = interval === 'weekly' ? 7 : 30;
+    return Date.now() - lastTime >= days * 24 * 60 * 60 * 1000;
+  });
 
   function showSettings(event: MouseEvent) {
     cleanupAccountDrag();
@@ -221,7 +241,10 @@
 
   $effect.pre(() => {
     const accounts = vault.sortedAccounts;
-    const disabled = reorderDisabled;
+    const activeAccount = activeDragAccountId ? vault.sortedAccounts.find((a) => a.id === activeDragAccountId) : null;
+    const disabled = activeAccount?.pinned
+      ? pinnedCount < 2 || query.trim().length > 0
+      : reorderDisabled;
     untrack(() => {
       if (reorderSourceIds && (disabled || !isReorderCurrent(accounts, reorderSourceIds))) {
         cleanupAccountDrag();
@@ -434,6 +457,15 @@
     }
   }
 
+  async function togglePin(account: AuthenticatorAccount) {
+    try {
+      await vault.togglePinAccount(account);
+    } catch (error) {
+      vault.error = error instanceof AccountChangedError
+        ? tr('accountChanged') : getErrorMessage(error, tr('accountChanged'));
+    }
+  }
+
   async function showQr(account: AuthenticatorAccount) {
     const request = qrRenderRequest + 1;
     qrRenderRequest = request;
@@ -625,11 +657,12 @@
 
   function startAccountDrag(account: AuthenticatorAccount, event: PointerEvent) {
     const scrollContainer = scrollContainerElement;
+    const canDrag = account.pinned ? pinnedCount >= 2 && !query.trim() : !reorderDisabled;
     if (
       dragState ||
       keyboardDraggingAccountId ||
       reorderSaving ||
-      reorderDisabled ||
+      !canDrag ||
       !accountListElement ||
       !scrollContainer
     ) {
@@ -808,7 +841,8 @@
   }
 
   function handleAccountDragKey(account: AuthenticatorAccount, event: KeyboardEvent) {
-    if (reorderSaving || reorderDisabled) {
+    const canDrag = account.pinned ? pinnedCount >= 2 && !query.trim() : !reorderDisabled;
+    if (reorderSaving || !canDrag) {
       return;
     }
 
@@ -850,7 +884,11 @@
     const accounts = dragAccounts ?? orderedAccounts;
     const fromIndex = accounts.findIndex((item) => item.id === account.id);
     const delta = event.key === 'ArrowUp' || event.key === 'ArrowLeft' ? -1 : 1;
-    const toIndex = Math.max(0, Math.min(accounts.length - 1, fromIndex + delta));
+    const draggedAccount = vault.sortedAccounts.find((item) => item.id === account.id);
+    const pinnedCount = vault.sortedAccounts.filter((item) => item.pinned).length;
+    const minIndex = draggedAccount?.pinned ? 0 : pinnedCount;
+    const maxIndex = draggedAccount?.pinned ? pinnedCount - 1 : accounts.length - 1;
+    const toIndex = Math.max(minIndex, Math.min(maxIndex, fromIndex + delta));
     if (fromIndex === -1 || fromIndex === toIndex) {
       return;
     }
@@ -921,6 +959,14 @@
       if (draggedCenter < rect.top + rect.height * upwardSwitchRatio) {
         targetIndex = index;
       }
+    }
+
+    const draggedAccount = vault.sortedAccounts.find((item) => item.id === state.accountId);
+    const pinnedCount = vault.sortedAccounts.filter((item) => item.pinned).length;
+    if (draggedAccount?.pinned) {
+      targetIndex = Math.min(targetIndex, pinnedCount - 1);
+    } else if (pinnedCount > 0) {
+      targetIndex = Math.max(targetIndex, pinnedCount);
     }
 
     return targetIndex;
@@ -998,8 +1044,8 @@
       {account}
       code={vault.codes[account.id]}
       suggestedForSite={pageRanking.suggestedAccountIds.has(account.id)}
-      showReorder={manualSort}
-      reorderDisabled={reorderDisabled}
+      showReorder={manualSort || (Boolean(account.pinned) && pinnedCount >= 2)}
+      reorderDisabled={account.pinned ? pinnedCount < 2 || query.trim().length > 0 : reorderDisabled}
       reorderPending={reorderSaving}
       dragging={activeDragAccountId === account.id}
       dragStyle={getAccountDragStyle(account)}
@@ -1169,10 +1215,31 @@
     closeLabel={tr('cancel')}
     onclose={() => (actionsFor = null)}
   >
-    <div class="border-b border-base-200 px-4 py-3">
+    <div class="border-b border-base-200 px-4 py-3 flex items-center justify-between gap-2">
       <p class="truncate font-semibold">{accountTitle(account)}</p>
+      {#if account.pinned}
+        <span class="badge badge-primary badge-sm gap-1">
+          <Pin size={10} class="fill-current" aria-hidden="true" />
+          {tr('pinned')}
+        </span>
+      {/if}
     </div>
     <ul class="menu w-full gap-0.5 p-2 text-base">
+      <li>
+        <button
+          type="button"
+          onclick={() => {
+            void togglePin(account);
+            actionsFor = null;
+          }}
+        >
+          {#if account.pinned}
+            <PinOff size={18} aria-hidden="true" />{tr('unpinAccount')}
+          {:else}
+            <Pin size={18} aria-hidden="true" />{tr('pinAccount')}
+          {/if}
+        </button>
+      </li>
       <li>
         <button
           type="button"

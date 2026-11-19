@@ -41,6 +41,7 @@ export function createAccount(draft: AccountDraft): AuthenticatorAccount {
     digits,
     period,
     counter: Math.max(0, Math.trunc(draft.counter ?? 0)),
+    ...(draft.pinned ? { pinned: true } : {}),
     sortOrder: draft.sortOrder,
     createdAt: now,
     updatedAt: now
@@ -62,8 +63,14 @@ export function updateAccount(
     digits: type === 'steam' ? 5 : patch.digits ?? account.digits,
     period: patch.period ?? account.period,
     counter: Math.max(0, Math.trunc(patch.counter ?? account.counter)),
+    ...(patch.pinned === undefined
+      ? account.pinned ? { pinned: true } : {}
+      : patch.pinned ? { pinned: true } : {}),
     updatedAt: new Date().toISOString()
   };
+  if (patch.pinned === false) {
+    delete next.pinned;
+  }
 
   validateAccountDraft(next);
   return next;
@@ -96,6 +103,10 @@ export function validateAccountDraft(draft: AccountDraft): void {
   const counter = draft.counter ?? 0;
   if (!Number.isInteger(counter) || counter < 0) {
     throw new Error('Counter must be a positive whole number.');
+  }
+
+  if (draft.pinned !== undefined && typeof draft.pinned !== 'boolean') {
+    throw new Error('Pinned must be a boolean.');
   }
 }
 
@@ -146,6 +157,15 @@ function normalizeImportedAccount(value: unknown): AuthenticatorAccount {
       throw new Error(IMPORTED_ACCOUNT_ERROR);
     }
     account.sortOrder = sortOrder;
+  }
+
+  if (record.pinned !== undefined) {
+    if (typeof record.pinned !== 'boolean') {
+      throw new Error(IMPORTED_ACCOUNT_ERROR);
+    }
+    if (record.pinned) {
+      account.pinned = true;
+    }
   }
 
   validateAccountDraft(account);

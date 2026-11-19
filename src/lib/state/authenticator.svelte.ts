@@ -163,6 +163,18 @@ export class AuthenticatorVault {
     await this.enqueueMutation(() => this.updateAccountNow(target, update));
   }
 
+  async togglePinAccount(reference: AccountReference): Promise<void> {
+    const snapshot = typeof reference === 'string' ? reference : { ...reference };
+    await this.enqueueMutation(async () => {
+      const account = await this.requireAccount(snapshot);
+      await this.updateAccountNow(
+        account.id,
+        { pinned: !account.pinned },
+        account.pinned ? 'Account unpinned.' : 'Account pinned.'
+      );
+    });
+  }
+
   async deleteAccount(reference: AccountReference): Promise<void> {
     const snapshot = typeof reference === 'string' ? reference : { ...reference };
     await this.enqueueMutation(async () => {
@@ -176,12 +188,29 @@ export class AuthenticatorVault {
   async reorderAccounts(orderedIds: string[]): Promise<void> {
     const requestedOrder = [...orderedIds];
     await this.enqueueMutation(async () => {
-      if (this.settings.accountSortMode !== 'manual') {
-        return;
-      }
-
+      const isManual = this.settings.accountSortMode === 'manual';
       const resolvedOrder = requestedOrder.map((id) => this.findAccount(id)?.id);
       if (!resolvedOrder.every((id) => id !== undefined)) return;
+
+      if (!isManual) {
+        const currentPinnedIds = this.sortedAccounts.filter((a) => a.pinned).map((a) => a.id);
+        const requestedPinnedIds = requestedOrder.slice(0, currentPinnedIds.length);
+        const currentUnpinnedIds = this.sortedAccounts.filter((a) => !a.pinned).map((a) => a.id);
+        const requestedUnpinnedIds = requestedOrder.slice(currentPinnedIds.length);
+
+        const unpinnedUnchanged =
+          currentUnpinnedIds.length === requestedUnpinnedIds.length &&
+          currentUnpinnedIds.every((id, idx) => id === requestedUnpinnedIds[idx]);
+        const pinnedValid =
+          currentPinnedIds.length >= 2 &&
+          new Set(requestedPinnedIds).size === currentPinnedIds.length &&
+          requestedPinnedIds.every((id) => currentPinnedIds.includes(id));
+
+        if (!unpinnedUnchanged || !pinnedValid) {
+          return;
+        }
+      }
+
       const accounts = reorderAccountsById(this.sortedAccounts, resolvedOrder);
       if (!accounts) {
         return;
@@ -468,7 +497,11 @@ export class AuthenticatorVault {
     return account;
   }
 
-  private async updateAccountNow(reference: AccountReference, draft: Partial<AccountDraft>): Promise<void> {
+  private async updateAccountNow(
+    reference: AccountReference,
+    draft: Partial<AccountDraft>,
+    message: string | undefined = 'Account updated.'
+  ): Promise<void> {
     const account = await this.requireAccount(reference);
     const index = this.accounts.indexOf(account);
 
@@ -478,7 +511,7 @@ export class AuthenticatorVault {
     const synced = this.browserSync ? await reconcileSyncAccounts(this.browserSync, accounts, []) : null;
     await this.persistData(
       { accounts: synced?.accounts ?? accounts, settings: this.settings },
-      'Account updated.',
+      message,
       synced?.state
     );
     await this.refreshCodes();

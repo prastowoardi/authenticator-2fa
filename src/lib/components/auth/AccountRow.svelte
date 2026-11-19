@@ -1,6 +1,7 @@
 <script lang="ts">
   import EllipsisVertical from '@lucide/svelte/icons/ellipsis-vertical';
   import GripVertical from '@lucide/svelte/icons/grip-vertical';
+  import Pin from '@lucide/svelte/icons/pin';
   import RefreshCw from '@lucide/svelte/icons/refresh-cw';
   import CountdownRing from './CountdownRing.svelte';
   import { authenticatorVault as vault } from '../../state/authenticator.svelte';
@@ -45,7 +46,11 @@
   const expiring = $derived(account.type !== 'hotp' && (code?.remaining ?? 99) <= 5);
   const title = $derived(account.issuer ? `${account.issuer} ${account.label}` : account.label);
   const contextualTitle = $derived(
-    suggestedForSite ? `${title} — ${tr('siteSuggestion')}` : title
+    suggestedForSite
+      ? `${title} — ${tr('siteSuggestion')}`
+      : account.pinned
+        ? `${title} — ${tr('pinned')}`
+        : title
   );
 
   async function copy() {
@@ -138,6 +143,9 @@
   >
     <span class="flex min-w-0 grow flex-col">
       <span class="flex min-w-0 items-center gap-1.5 text-sm leading-tight text-base-content/60">
+        {#if account.pinned}
+          <Pin size={12} class="shrink-0 fill-current text-primary" aria-label={tr('pinned')} />
+        {/if}
         <span class="truncate font-medium text-base-content/80">{account.issuer || account.label}</span>
         {#if account.issuer && account.label}
           <span class="truncate">{account.label}</span>

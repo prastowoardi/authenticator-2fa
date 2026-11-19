@@ -234,6 +234,7 @@ export async function joinSyncAccounts(
     const existing = known ? sameId : byFingerprint.get(accountFingerprint(local));
     if (existing) {
       if (local.sortOrder !== undefined) existing.sortOrder = local.sortOrder;
+      if (local.pinned !== undefined) existing.pinned = local.pinned;
       if (existing.type === 'hotp' && local.type === 'hotp') {
         existing.counter = Math.max(existing.counter, local.counter);
       }
@@ -333,7 +334,13 @@ export async function reconcileSyncAccounts(
   for (const account of current) {
     const id = identities.get(account.id)?.id ?? account.id;
     const survivor = surviving.get(id);
-    if (survivor) accounts.push(account.sortOrder === undefined ? survivor : { ...survivor, sortOrder: account.sortOrder });
+    if (survivor) {
+      accounts.push({
+        ...survivor,
+        ...(account.sortOrder !== undefined ? { sortOrder: account.sortOrder } : {}),
+        ...(account.pinned !== undefined ? { pinned: account.pinned } : {})
+      });
+    }
     surviving.delete(id);
   }
   accounts.push(...Array.from(surviving.values(), (account) => ({ ...account, sortOrder: nextOrder++ })));
@@ -507,5 +514,6 @@ function sameCredentials(left: AuthenticatorAccount, right: AuthenticatorAccount
 function withoutLocalOrder(account: AuthenticatorAccount): AuthenticatorAccount {
   const syncedAccount = { ...account };
   delete syncedAccount.sortOrder;
+  delete syncedAccount.pinned;
   return syncedAccount;
 }

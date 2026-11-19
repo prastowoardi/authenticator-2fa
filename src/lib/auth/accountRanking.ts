@@ -140,7 +140,17 @@ export function getAccountPageRanking(
 
   return {
     accounts: scoredAccounts
-      .sort((left, right) => right.score - left.score || left.index - right.index)
+      .sort((left, right) => {
+        const leftPinned = left.account.pinned ? 1 : 0;
+        const rightPinned = right.account.pinned ? 1 : 0;
+        if (leftPinned !== rightPinned) {
+          return rightPinned - leftPinned;
+        }
+        if (leftPinned) {
+          return left.index - right.index;
+        }
+        return right.score - left.score || left.index - right.index;
+      })
       .map(({ account }) => account),
     suggestedAccountIds: new Set(
       scoredAccounts.filter(({ score }) => score > 0).map(({ account }) => account.id)
@@ -171,8 +181,12 @@ export function getAccountListView(
   }
 
   if (suggestedAccountIds.size > 0) {
-    const suggestedAccounts = accounts.filter((account) => suggestedAccountIds.has(account.id));
-    const otherAccounts = accounts.filter((account) => !suggestedAccountIds.has(account.id));
+    const suggestedAccounts = accounts.filter(
+      (account) => suggestedAccountIds.has(account.id) || account.pinned
+    );
+    const otherAccounts = accounts.filter(
+      (account) => !suggestedAccountIds.has(account.id) && !account.pinned
+    );
     if (suggestedAccounts.length > 0 && otherAccounts.length > 0) {
       return {
         accounts: suggestedAccounts,

@@ -9,6 +9,8 @@ export type ThemePreference = 'system' | 'light' | 'dark';
 
 export type AccountSortMode = 'manual' | 'contextual';
 
+export type AutoBackupInterval = 'off' | 'monthly' | 'weekly';
+
 export interface AuthenticatorAccount {
   id: string;
   issuer: string;
@@ -19,6 +21,7 @@ export interface AuthenticatorAccount {
   digits: number;
   period: number;
   counter: number;
+  pinned?: boolean;
   sortOrder?: number;
   createdAt: string;
   updatedAt: string;
@@ -33,6 +36,7 @@ export interface AccountDraft {
   digits?: number;
   period?: number;
   counter?: number;
+  pinned?: boolean;
   sortOrder?: number;
 }
 
@@ -65,6 +69,8 @@ export interface AppSettings {
   autoPasteCodes: boolean;
   accountSortMode: AccountSortMode;
   alwaysShowAllCodes: boolean;
+  autoBackupInterval: AutoBackupInterval;
+  lastBackupDate?: string;
 }
 
 export interface VaultEnvelope {
@@ -101,7 +107,8 @@ export const DEFAULT_SETTINGS: AppSettings = {
   hideCodes: false,
   autoPasteCodes: false,
   accountSortMode: 'contextual',
-  alwaysShowAllCodes: false
+  alwaysShowAllCodes: false,
+  autoBackupInterval: 'off'
 };
 
 export function createDefaultAppSettings(): AppSettings {
@@ -118,7 +125,11 @@ export function normalizeAppSettings(settings: Partial<AppSettings> | undefined)
     language: resolveSupportedLanguage(settings?.language ? [settings.language] : []),
     hideCodes: settings?.hideCodes === true,
     accountSortMode: settings?.accountSortMode === 'manual' ? 'manual' : 'contextual',
-    alwaysShowAllCodes: settings?.alwaysShowAllCodes === true
+    alwaysShowAllCodes: settings?.alwaysShowAllCodes === true,
+    autoBackupInterval: ['off', 'monthly', 'weekly'].includes(settings?.autoBackupInterval as string)
+      ? (settings?.autoBackupInterval as AutoBackupInterval)
+      : 'off',
+    lastBackupDate: typeof settings?.lastBackupDate === 'string' ? settings.lastBackupDate : undefined
   };
 }
 
